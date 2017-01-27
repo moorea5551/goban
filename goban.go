@@ -2,32 +2,70 @@ package main
 
 import (
 	"gopkg.in/gin-gonic/gin.v1"
-	"net/http"
 	"database/sql"
 	"gopkg.in/gorp.v2"
 	_ "github.com/mattn/go-sqlite3"
 	"log"
+	"io"
+	"os"
+)
+
+var dbMap = initDb()
+
+var (
+	Trace	*log.Logger
+	Info	*log.Logger
+	Warning	*log.Logger
+	Error	*log.Logger
 )
 
 func main () {
-	dbMap  := initDb()
+	initLog(os.Stdout, os.Stdout, os.Stdout, os.Stderr)
+
 	defer dbMap.Db.Close()
 	router := gin.Default()
 
 	router.GET("/job", getJobs)
-	router.PUT("/job", createJob)
-	router.POST("/job", saveJob)
+	router.POST("/job", postJob)
 	router.DELETE("/job", deleteJob)
 
 	router.Run()
 }
 
 func getJobs (c *gin.Context) {
-	c.String(http.StatusOK, "Hello world")
+	var jobs []Job
+	_, err := dbMap.Select(&jobs, "select * from jobs")
+	checkErr(err, "Job Select Failed")
+
+	c.JSON(200, jobs)
 }
 
-func createJob (c *gin.Context) {
-	//TODO implement createJob
+func postJob (c *gin.Context) {
+	title := c.PostForm("title")
+	reporter := c.PostForm("reporter")
+	description := c.PostForm("description")
+	assignee := c.PostForm("assignee")
+
+	job := newJob(title, reporter, description, assignee)
+
+	var existingJobs []Job
+	_, selectErr := dbMap.Select(&existingJobs, "select * from jobs " +
+		"						where title = ? " +
+		"						and reporter = ? " +
+		"						and description = ?",
+								job.Title, job.Reporter, job.Description)
+	checkErr(selectErr, "Jobs Select Failed")
+
+	if (len(existingJobs) > 0) {
+		_, err := dbMap.Update(&job)
+		checkErr(err, "Job Update Failed")
+	} else {
+		err := dbMap.Insert(&job)
+		checkErr(err, "Job Create Failed")
+	}
+
+	content := job
+	c.JSON(200, content)
 }
 
 func saveJob (c *gin.Context) {
@@ -40,12 +78,19 @@ func deleteJob (c *gin.Context) {
 
 type Job struct {
 	Id          int64
-	WorkOrder   int64
 	Title       string
 	Reporter    string
-	Location    string
 	Description string
-	Assignee    int64
+	Assignee    string
+}
+
+func newJob (title, reporter, description, assignee string) Job {
+	return Job {
+		Title: title,
+		Reporter: reporter,
+		Description: description,
+		Assignee: assignee,
+	}
 }
 
 type Assignee struct {
@@ -63,7 +108,7 @@ func initDb () *gorp.DbMap {
 	// construct a gorp DbMap
 	dbmap := &gorp.DbMap{Db: db, Dialect: gorp.SqliteDialect{}}
 
-	// add a table, setting the table name to 'posts' and
+	// add a table, setting the table name to 'jobs' and
 	// specifying that the Id property is an auto incrementing PK
 	dbmap.AddTableWithName(Job{}, "jobs").SetKeys(true, "Id")
 	dbmap.AddTableWithName(Assignee{}, "assignees").SetKeys(true, "Id")
@@ -74,6 +119,13 @@ func initDb () *gorp.DbMap {
 	checkErr(err, "Create tables failed")
 
 	return dbmap
+}
+
+func initLog (traceHandle, infoHandle, warningHandle, errorHandle io.Writer) {
+	Trace = log.New(traceHandle, "Trace: ", log.Ldate|log.Ltime|log.Lshortfile)
+	Info = log.New(infoHandle, "Info: ", log.Ldate|log.Ltime|log.Lshortfile)
+	Warning = log.New(warningHandle, "Warning: ", log.Ldate|log.Ltime|log.Lshortfile)
+	Error = log.New(errorHandle, "Error: ", log.Ldate|log.Ltime|log.Lshortfile)
 }
 
 func checkErr (err error, msg string) {
