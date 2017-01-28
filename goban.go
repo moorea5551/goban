@@ -8,6 +8,7 @@ import (
 	"log"
 	"io"
 	"os"
+	"strconv"
 )
 
 var dbMap = initDb()
@@ -27,6 +28,7 @@ func main () {
 
 	router.GET("/job", getJobs)
 	router.POST("/job", postJob)
+	router.POST("/job/:jobId", updateJob)
 	router.DELETE("/job", deleteJob)
 
 	router.Run()
@@ -41,35 +43,39 @@ func getJobs (c *gin.Context) {
 }
 
 func postJob (c *gin.Context) {
-	title := c.PostForm("title")
-	reporter := c.PostForm("reporter")
+	title 	    := c.PostForm("title")
+	reporter    := c.PostForm("reporter")
 	description := c.PostForm("description")
-	assignee := c.PostForm("assignee")
+	assignee    := c.PostForm("assignee")
 
 	job := newJob(title, reporter, description, assignee)
 
-	var existingJobs []Job
-	_, selectErr := dbMap.Select(&existingJobs, "select * from jobs " +
-		"						where title = ? " +
-		"						and reporter = ? " +
-		"						and description = ?",
-								job.Title, job.Reporter, job.Description)
-	checkErr(selectErr, "Jobs Select Failed")
 
-	if (len(existingJobs) > 0) {
-		_, err := dbMap.Update(&job)
-		checkErr(err, "Job Update Failed")
-	} else {
-		err := dbMap.Insert(&job)
-		checkErr(err, "Job Create Failed")
-	}
+	err := dbMap.Insert(&job)
+	Info.Println("Creating Job " + job.Title)
+	checkErr(err, "Job Create Failed")
 
 	content := job
 	c.JSON(200, content)
 }
 
-func saveJob (c *gin.Context) {
-	//TODO implement saveJob
+func updateJob (c *gin.Context) {
+	title 	    := c.PostForm("title")
+	reporter    := c.PostForm("reporter")
+	description := c.PostForm("description")
+	assignee    := c.PostForm("assignee")
+	id, err     := strconv.ParseInt(c.Param("jobId"), 10, 64)
+	checkErr(err, "String convert err")
+
+	job := newJob(title, reporter, description, assignee)
+
+	job.Id = id
+	_, updateErr := dbMap.Update(&job)
+	Info.Println("Updating Job " + job.Title)
+	checkErr(updateErr, "Job Update Failed")
+
+	content := job
+	c.JSON(200, content)
 }
 
 func deleteJob (c *gin.Context) {
