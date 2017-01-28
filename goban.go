@@ -29,7 +29,7 @@ func main () {
 	router.GET("/job", getJobs)
 	router.POST("/job", postJob)
 	router.POST("/job/:jobId", updateJob)
-	router.DELETE("/job", deleteJob)
+	router.DELETE("/job/:jobId", deleteJob)
 
 	router.Run()
 }
@@ -79,7 +79,11 @@ func updateJob (c *gin.Context) {
 }
 
 func deleteJob (c *gin.Context) {
-	//TODO implement deleteJob
+	jobId  := c.Param("jobId")
+	_, err := dbMap.Exec("delete from jobs where Id = ?", jobId)
+	checkErr(err, "Delete Job Failed")
+
+	c.JSON(200, jobId)
 }
 
 type Job struct {
