@@ -1,7 +1,7 @@
 package main
 
 import (
-	"gopkg.in/gin-gonic/gin.v1"
+	"github.com/gin-gonic/gin"
 	"database/sql"
 	"gopkg.in/gorp.v2"
 	_ "github.com/mattn/go-sqlite3"
@@ -9,22 +9,27 @@ import (
 	"io"
 	"os"
 	"strconv"
+	"gopkg.in/gin-contrib/cors.v1"
 )
 
 var dbMap = initDb()
 
 var (
-	Trace	*log.Logger
-	Info	*log.Logger
-	Warning	*log.Logger
-	Error	*log.Logger
+	Trace       *log.Logger
+	Info        *log.Logger
+	Warning     *log.Logger
+	Error       *log.Logger
 )
 
-func main () {
+func main() {
 	initLog(os.Stdout, os.Stdout, os.Stdout, os.Stderr)
 
 	defer dbMap.Db.Close()
 	router := gin.Default()
+
+	config := cors.DefaultConfig()
+
+	router.Use(cors.New(config))
 
 	router.GET("/job", getJobs)
 	router.POST("/job", postJob)
@@ -34,7 +39,7 @@ func main () {
 	router.Run()
 }
 
-func getJobs (c *gin.Context) {
+func getJobs(c *gin.Context) {
 	var jobs []Job
 	_, err := dbMap.Select(&jobs, "select * from jobs")
 	checkErr(err, "Job Select Failed")
@@ -42,14 +47,13 @@ func getJobs (c *gin.Context) {
 	c.JSON(200, jobs)
 }
 
-func postJob (c *gin.Context) {
-	title 	    := c.PostForm("title")
-	reporter    := c.PostForm("reporter")
+func postJob(c *gin.Context) {
+	title := c.PostForm("title")
+	reporter := c.PostForm("reporter")
 	description := c.PostForm("description")
-	assignee    := c.PostForm("assignee")
+	assignee := c.PostForm("assignee")
 
 	job := newJob(title, reporter, description, assignee)
-
 
 	err := dbMap.Insert(&job)
 	Info.Println("Creating Job " + job.Title)
@@ -59,12 +63,12 @@ func postJob (c *gin.Context) {
 	c.JSON(200, content)
 }
 
-func updateJob (c *gin.Context) {
-	title 	    := c.PostForm("title")
-	reporter    := c.PostForm("reporter")
+func updateJob(c *gin.Context) {
+	title := c.PostForm("title")
+	reporter := c.PostForm("reporter")
 	description := c.PostForm("description")
-	assignee    := c.PostForm("assignee")
-	id, err     := strconv.ParseInt(c.Param("jobId"), 10, 64)
+	assignee := c.PostForm("assignee")
+	id, err := strconv.ParseInt(c.Param("jobId"), 10, 64)
 	checkErr(err, "String convert err")
 
 	job := newJob(title, reporter, description, assignee)
@@ -78,8 +82,8 @@ func updateJob (c *gin.Context) {
 	c.JSON(200, content)
 }
 
-func deleteJob (c *gin.Context) {
-	jobId  := c.Param("jobId")
+func deleteJob(c *gin.Context) {
+	jobId := c.Param("jobId")
 	_, err := dbMap.Exec("delete from jobs where Id = ?", jobId)
 	checkErr(err, "Delete Job Failed")
 
@@ -94,8 +98,8 @@ type Job struct {
 	Assignee    string
 }
 
-func newJob (title, reporter, description, assignee string) Job {
-	return Job {
+func newJob(title, reporter, description, assignee string) Job {
+	return Job{
 		Title: title,
 		Reporter: reporter,
 		Description: description,
@@ -109,7 +113,7 @@ type Assignee struct {
 	LastName  string
 }
 
-func initDb () *gorp.DbMap {
+func initDb() *gorp.DbMap {
 	// connect to db using standard Go database/sql API
 	// use whatever database/sql driver you wish
 	db, err := sql.Open("sqlite3", "./jobsData.bin")
@@ -131,14 +135,14 @@ func initDb () *gorp.DbMap {
 	return dbmap
 }
 
-func initLog (traceHandle, infoHandle, warningHandle, errorHandle io.Writer) {
-	Trace = log.New(traceHandle, "Trace: ", log.Ldate|log.Ltime|log.Lshortfile)
-	Info = log.New(infoHandle, "Info: ", log.Ldate|log.Ltime|log.Lshortfile)
-	Warning = log.New(warningHandle, "Warning: ", log.Ldate|log.Ltime|log.Lshortfile)
-	Error = log.New(errorHandle, "Error: ", log.Ldate|log.Ltime|log.Lshortfile)
+func initLog(traceHandle, infoHandle, warningHandle, errorHandle io.Writer) {
+	Trace = log.New(traceHandle, "Trace: ", log.Ldate | log.Ltime | log.Lshortfile)
+	Info = log.New(infoHandle, "Info: ", log.Ldate | log.Ltime | log.Lshortfile)
+	Warning = log.New(warningHandle, "Warning: ", log.Ldate | log.Ltime | log.Lshortfile)
+	Error = log.New(errorHandle, "Error: ", log.Ldate | log.Ltime | log.Lshortfile)
 }
 
-func checkErr (err error, msg string) {
+func checkErr(err error, msg string) {
 	if err != nil {
 		log.Fatalln(msg, err)
 	}
